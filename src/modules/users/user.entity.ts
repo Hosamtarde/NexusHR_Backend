@@ -37,7 +37,7 @@ export class UserEntity {
   status!: boolean;
 
   @Index('uq_users_chat_user_id', { unique: true })
-  @Column({ type: 'varchar', length: 64, nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true, select: false })
   chat_user_id!: string | null;
 
   @CreateDateColumn()

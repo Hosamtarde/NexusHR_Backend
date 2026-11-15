@@ -3,9 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
+import { ChatCredentialsService } from '../rocketchat/chat-credentials.service';
 import { RefreshTokenEntity } from './refresh-token.entity';
 import { LoginDto } from './dto/login.dto';
 import type { JwtSignOptions } from '@nestjs/jwt';
@@ -18,6 +19,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly chatCredentials: ChatCredentialsService,
     @InjectRepository(RefreshTokenEntity)
     private readonly refreshTokensRepository: Repository<RefreshTokenEntity>,
   ) {}
@@ -40,11 +42,13 @@ export class AuthService {
     }
 
     const tokens = await this.issueTokens(user);
+    const chat = await this.chatCredentials.loginWithSync(user, dto.password);
 
     this.logger.log(`User #${user.user_id} logged in as ${user.role}`);
 
     return {
       ...tokens,
+      chat,
       user: {
         user_id: user.user_id,
         first_name: user.first_name,
@@ -81,7 +85,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const user = await this.usersService.findById(payload.sub);
+    const user = await this.usersService.findByIdWithChat(payload.sub);
     if (!user || !user.status) {
       await this.revokeAllForUser(payload.sub);
       throw new UnauthorizedException('Account is inactive or does not exist');
@@ -90,7 +94,10 @@ export class AuthService {
     stored.revoked_at = new Date();
     await this.refreshTokensRepository.save(stored);
 
-    return this.issueTokens(user);
+    const tokens = await this.issueTokens(user);
+    const chat = await this.chatCredentials.renewSession(user);
+
+    return { ...tokens, chat };
   }
 
   async logout(userId: number) {
@@ -123,14 +130,22 @@ export class AuthService {
   }) {
     const payload = { sub: user.user_id, email: user.email, role: user.role };
 
-    const access_token = await this.jwtService.signAsync(payload);
-
-    const refresh_token = await this.jwtService.signAsync(payload, {
-      secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.config.getOrThrow<string>(
-        'JWT_REFRESH_EXPIRES_IN',
-      ) as JwtSignOptions['expiresIn'],
+    // A random jti keeps every token unique, even when two are issued in the
+    // same second (the refresh token hash has a unique index).
+    const access_token = await this.jwtService.signAsync({
+      ...payload,
+      jti: randomUUID(),
     });
+
+    const refresh_token = await this.jwtService.signAsync(
+      { ...payload, jti: randomUUID() },
+      {
+        secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
+        expiresIn: this.config.getOrThrow<string>(
+          'JWT_REFRESH_EXPIRES_IN',
+        ) as JwtSignOptions['expiresIn'],
+      },
+    );
 
     const decoded = this.jwtService.decode<{ exp: number }>(refresh_token);
 

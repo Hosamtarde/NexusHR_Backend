@@ -30,7 +30,7 @@ export class ChatProvisioningService {
     private readonly rocketChat: RocketChatService,
   ) {}
 
-  async provisionEmployee(userId: number): Promise<void> {
+  async provisionEmployee(userId: number, password?: string): Promise<void> {
     if (!this.rocketChat.isEnabled()) {
       return;
     }
@@ -49,7 +49,7 @@ export class ChatProvisioningService {
         return;
       }
 
-      const chatUser = await this.createChatUser(row);
+      const chatUser = await this.createChatUser(row, password);
       if (!chatUser) {
         return;
       }
@@ -159,9 +159,10 @@ export class ChatProvisioningService {
 
   private async createChatUser(
     row: ProvisioningRow,
+    plainPassword?: string,
   ): Promise<RocketChatUser | null> {
     const name = `${row.first_name} ${row.last_name}`;
-    const password = generateChatPassword();
+    const password = plainPassword ?? generateChatPassword();
 
     const first = await this.rocketChat.createUser({
       username: buildChatUsername(row.email),
