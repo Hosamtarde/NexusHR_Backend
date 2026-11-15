@@ -12,6 +12,7 @@ import { UserEntity } from './user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Role } from '../../common/enums/enums';
+import { ChatCredentialsService } from '../rocketchat/chat-credentials.service';
 
 @Injectable()
 export class UsersService {
@@ -20,6 +21,7 @@ export class UsersService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly usersRepository: Repository<UserEntity>,
+    private readonly chatCredentials: ChatCredentialsService,
   ) {}
 
   async findByEmailWithPassword(email: string): Promise<UserEntity | null> {
@@ -75,6 +77,26 @@ export class UsersService {
     return saved;
   }
 
+  async setPassword(
+    userId: number,
+    newPassword: string,
+    actorId: number,
+  ): Promise<{ message: string }> {
+    const user = await this.findById(userId);
+    if (!user.status) {
+      throw new NotFoundException(`User #${userId} not found`);
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await this.usersRepository.update(userId, { password: hashed });
+
+    await this.chatCredentials.syncPassword(userId, newPassword);
+
+    this.logger.log(`User #${userId} password was set by HR user #${actorId}`);
+
+    return { message: 'Password updated successfully' };
+  }
+
   async changePassword(
     userId: number,
     dto: ChangePasswordDto,
@@ -99,6 +121,8 @@ export class UsersService {
 
     const hashed = await bcrypt.hash(dto.new_password, 10);
     await this.usersRepository.update(userId, { password: hashed });
+
+    await this.chatCredentials.syncPassword(userId, dto.new_password);
 
     this.logger.log(`User #${userId} changed their password`);
 

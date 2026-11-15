@@ -94,7 +94,10 @@ export class AuthService {
     stored.revoked_at = new Date();
     await this.refreshTokensRepository.save(stored);
 
-    return this.issueTokens(user);
+    const tokens = await this.issueTokens(user);
+    const chat = await this.chatCredentials.renewSession(user);
+
+    return { ...tokens, chat };
   }
 
   async logout(userId: number) {

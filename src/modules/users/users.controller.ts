@@ -18,6 +18,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { SetPasswordDto } from './dto/set-password.dto';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -45,6 +46,17 @@ export class UsersController {
     @Body() dto: ChangePasswordDto,
   ) {
     return this.usersService.changePassword(userId, dto);
+  }
+
+  @Patch(':id/password')
+  @UseGuards(RolesGuard)
+  @Roles(Role.HR_ADMIN)
+  setPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetPasswordDto,
+    @CurrentUser('user_id') actorId: number,
+  ) {
+    return this.usersService.setPassword(id, dto.new_password, actorId);
   }
 
   @Patch(':id/role')
