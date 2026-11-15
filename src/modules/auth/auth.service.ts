@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { ChatCredentialsService } from '../rocketchat/chat-credentials.service';
@@ -130,14 +130,22 @@ export class AuthService {
   }) {
     const payload = { sub: user.user_id, email: user.email, role: user.role };
 
-    const access_token = await this.jwtService.signAsync(payload);
-
-    const refresh_token = await this.jwtService.signAsync(payload, {
-      secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.config.getOrThrow<string>(
-        'JWT_REFRESH_EXPIRES_IN',
-      ) as JwtSignOptions['expiresIn'],
+    // A random jti keeps every token unique, even when two are issued in the
+    // same second (the refresh token hash has a unique index).
+    const access_token = await this.jwtService.signAsync({
+      ...payload,
+      jti: randomUUID(),
     });
+
+    const refresh_token = await this.jwtService.signAsync(
+      { ...payload, jti: randomUUID() },
+      {
+        secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
+        expiresIn: this.config.getOrThrow<string>(
+          'JWT_REFRESH_EXPIRES_IN',
+        ) as JwtSignOptions['expiresIn'],
+      },
+    );
 
     const decoded = this.jwtService.decode<{ exp: number }>(refresh_token);
 

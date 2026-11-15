@@ -1,3 +1,4 @@
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 
@@ -119,5 +120,71 @@ describe('AuthService chat session', () => {
       expect(result.chat).toBeNull();
       expect(result.refresh_token).toBe('jwt');
     });
+  });
+});
+
+describe('AuthService token uniqueness', () => {
+  it('issues different refresh tokens for two logins in the same second', async () => {
+    const jwt = new JwtService({
+      secret: 'access-secret',
+      signOptions: { expiresIn: '15m' },
+    });
+    const hashes: string[] = [];
+    const refreshRepo = {
+      create: (value: { token_hash: string }) => value,
+      save: (value: { token_hash: string }) => {
+        if (hashes.includes(value.token_hash)) {
+          throw new Error('Duplicate entry for the token hash index');
+        }
+        hashes.push(value.token_hash);
+        return value;
+      },
+    };
+    const config = {
+      getOrThrow: (key: string) =>
+        key === 'JWT_REFRESH_SECRET' ? 'refresh-secret' : '7d',
+    };
+    const service = new AuthService(
+      {} as never,
+      jwt,
+      config as never,
+      {} as never,
+      refreshRepo as never,
+    );
+    const user = { user_id: 7, email: 'ahmad@example.com', role: 'employee' };
+    const issue = (u: typeof user) =>
+      (
+        service as unknown as {
+          issueTokens: (
+            u: typeof user,
+          ) => Promise<{ access_token: string; refresh_token: string }>;
+        }
+      ).issueTokens(u);
+
+    jest.useFakeTimers({
+      now: new Date('2026-01-01T00:00:00Z'),
+      doNotFake: [
+        'nextTick',
+        'setImmediate',
+        'clearImmediate',
+        'setTimeout',
+        'clearTimeout',
+        'setInterval',
+        'clearInterval',
+        'queueMicrotask',
+        'performance',
+        'hrtime',
+      ],
+    });
+    try {
+      const first = await issue(user);
+      const second = await issue(user);
+
+      expect(second.refresh_token).not.toBe(first.refresh_token);
+      expect(second.access_token).not.toBe(first.access_token);
+      expect(hashes).toHaveLength(2);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
