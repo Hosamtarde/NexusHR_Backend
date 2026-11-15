@@ -111,7 +111,6 @@ College of Information Technology and Computer Engineering · Department of IT a
 </tr>
 <tr>
 <td><img src="docs/screenshots/org-chart.webp" alt="Org chart tree view" /><p align="center"><em>الهيكل التنظيمي — عرض الشجرة</em></p></td>
-<td><img src="docs/screenshots/org-chart-list.webp" alt="Org chart list view" /><p align="center"><em>الهيكل التنظيمي — عرض القائمة</em></p></td>
 </tr>
 </table>
 
