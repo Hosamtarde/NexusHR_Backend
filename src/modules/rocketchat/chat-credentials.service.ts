@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ChatSession, RocketChatService } from './rocketchat.service';
+import { ChatProvisioningService } from './chat-provisioning.service';
+import { buildChatUsername } from './chat-provisioning.helper';
 
 export interface ChatAccountRef {
   user_id: number;
@@ -15,6 +17,7 @@ export class ChatCredentialsService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly rocketChat: RocketChatService,
+    private readonly provisioning: ChatProvisioningService,
   ) {}
 
   /**
@@ -31,11 +34,15 @@ export class ChatCredentialsService {
     }
 
     try {
+      if (!user.chat_user_id) {
+        return await this.healLegacyAccount(user, password);
+      }
+
       const first = await this.rocketChat.login(user.email, password);
       if (first.status === 'ok') {
         return first.session;
       }
-      if (first.status === 'unavailable' || !user.chat_user_id) {
+      if (first.status === 'unavailable') {
         return null;
       }
 
@@ -68,6 +75,56 @@ export class ChatCredentialsService {
       );
       return null;
     }
+  }
+
+  /**
+   * Accounts created before the chat integration have no chat_user_id.
+   * Finds the Rocket.Chat account (or creates it), stores its id, sets the
+   * system password and logs in.
+   */
+  private async healLegacyAccount(
+    user: ChatAccountRef,
+    password: string,
+  ): Promise<ChatSession | null> {
+    const found = await this.rocketChat.findUser(
+      user.email,
+      buildChatUsername(user.email),
+    );
+    if (!found) {
+      this.logger.warn(
+        `Chat account lookup failed for user #${user.user_id}, it will be retried on the next login`,
+      );
+      return null;
+    }
+
+    if (found.user) {
+      await this.dataSource.manager.query(
+        `UPDATE users SET chat_user_id = ? WHERE user_id = ? AND chat_user_id IS NULL`,
+        [found.user._id, user.user_id],
+      );
+      const reset = await this.rocketChat.setUserPassword(
+        found.user._id,
+        password,
+      );
+      if (!reset) {
+        this.logger.warn(
+          `Chat password sync failed for user #${user.user_id}, it will be retried on the next login`,
+        );
+        return null;
+      }
+      this.logger.log(`Chat account linked for user #${user.user_id}`);
+    } else {
+      await this.provisioning.provisionEmployee(user.user_id, password);
+      const rows = await this.dataSource.manager.query<
+        { chat_user_id: string | null }[]
+      >(`SELECT chat_user_id FROM users WHERE user_id = ?`, [user.user_id]);
+      if (!rows[0]?.chat_user_id) {
+        return null;
+      }
+    }
+
+    const result = await this.rocketChat.login(user.email, password);
+    return result.status === 'ok' ? result.session : null;
   }
 
   /**

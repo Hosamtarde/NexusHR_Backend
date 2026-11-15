@@ -78,6 +78,27 @@ export class RocketChatService {
     return result?.user ?? null;
   }
 
+  /**
+   * Looks an account up by email or username. Resolves to null when the
+   * request failed, and to { user: null } when no such account exists.
+   */
+  async findUser(
+    email: string,
+    username: string,
+  ): Promise<{ user: RocketChatUser | null } | null> {
+    const query = JSON.stringify({
+      $or: [{ 'emails.address': email }, { username }],
+    });
+    const result = await this.request<{ users?: RocketChatUser[] }>(
+      'GET',
+      `users.list?query=${encodeURIComponent(query)}&fields=${encodeURIComponent('{"username":1}')}`,
+    );
+    if (!result) {
+      return null;
+    }
+    return { user: result.users?.[0] ?? null };
+  }
+
   async setUserPassword(
     chatUserId: string,
     password: string,
