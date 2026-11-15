@@ -623,6 +623,45 @@ MAIL_FROM="NexusHR <no-reply@nexushr.local>"
 
 ---
 
+## 🐳 تشغيل Rocket.Chat محلياً بـ Docker
+
+> ⚠️ ملف `docker-compose.yml` الخاص بـ Rocket.Chat **مش موجود داخل هذا المستودع** (الموجود هنا فقط MySQL و phpMyAdmin). الشرح تحته مبني على اللي أمكن التحقق منه من الحاويات الشغّالة، وكل شي غير مؤكد معلَّم بـ `TODO`.
+
+**أمر التشغيل** (من المجلد اللي فيه ملف compose الخاص بـ Rocket.Chat):
+
+```bash
+docker compose up -d
+```
+
+**ترتيب تشغيل الخدمات** (بيتم تلقائياً عن طريق `depends_on`):
+
+1. `mongodb` — قاعدة البيانات، لازم تصير `healthy` أول شي
+2. `mongo-init` — حاوية مؤقتة بتجهّز الـ replica set وبتنتهي (`Exited (0)` وضع طبيعي)
+3. `rocketchat` — السيرفر نفسه، بيشتغل بعد `mongo-init`
+
+**المنفذ:** `http://localhost:3100` (الحاوية بتسمع على 3000 داخلياً وبتنربط مع 3100 على الجهاز).
+
+**متغيرات الـ backend المطلوبة** (الأسماء فقط، القيم في `.env` ولا تُرفع للمستودع):
+
+| المتغير | الاستخدام |
+|---|---|
+| `ROCKETCHAT_URL` | عنوان السيرفر، مثلاً `http://localhost:3100` |
+| `ROCKETCHAT_BOT_USER_ID` | معرّف حساب الـ bot (`nexa`) |
+| `ROCKETCHAT_BOT_TOKEN` | Personal Access Token لحساب الـ bot |
+| `ROCKETCHAT_TOKEN_SECRET` | اختياري — لتجديد توكن الشات عند `POST /auth/refresh` |
+| `JITSI_BASE_URL` | رابط اجتماعات المقابلات |
+
+**لو الصفحة طلعت بيضاء:** أعد تشغيل مشروع الـ compose كامل (مش حاوية `rocketchat` لحالها):
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+> `TODO`: توثيق محتوى ملف الـ compose (الصور، الـ volumes، متغيرات البيئة) بعد نقله داخل المستودع أو تأكيد مكانه الدائم.
+
+---
+
 ## 💬 مزامنة كلمة المرور مع Rocket.Chat
 
 كلمة مرور النظام وكلمة مرور Rocket.Chat لازم تكون نفسها، وبتتزامن تلقائياً:
