@@ -34,6 +34,7 @@ export class RocketChatService {
   private readonly baseUrl: string;
   private readonly botUserId: string;
   private readonly botToken: string;
+  private readonly tokenSecret: string;
   private readonly enabled: boolean;
   private readonly timeoutMs = 5000;
   private readonly usernames = new Map<string, string>();
@@ -45,6 +46,7 @@ export class RocketChatService {
     );
     this.botUserId = config.get<string>('ROCKETCHAT_BOT_USER_ID') ?? '';
     this.botToken = config.get<string>('ROCKETCHAT_BOT_TOKEN') ?? '';
+    this.tokenSecret = config.get<string>('ROCKETCHAT_TOKEN_SECRET') ?? '';
     this.enabled = Boolean(this.baseUrl && this.botUserId && this.botToken);
 
     if (!this.enabled) {
@@ -88,9 +90,16 @@ export class RocketChatService {
   }
 
   async createUserToken(chatUserId: string): Promise<ChatSession | null> {
+    if (!this.tokenSecret) {
+      return null;
+    }
+
     const result = await this.request<{
       data: { userId: string; authToken: string };
-    }>('POST', 'users.createToken', { userId: chatUserId });
+    }>('POST', 'users.createToken', {
+      userId: chatUserId,
+      secret: this.tokenSecret,
+    });
     if (!result?.data?.userId || !result.data.authToken) {
       return null;
     }

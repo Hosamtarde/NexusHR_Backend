@@ -84,7 +84,10 @@ export class EmployeesService {
       `Employee created: user #${savedProfile.user_id} (${dto.email}) in department ${dto.department_id}`,
     );
 
-    void this.chatProvisioning.provisionEmployee(savedProfile.user_id, dto.password);
+    void this.chatProvisioning.provisionEmployee(
+      savedProfile.user_id,
+      dto.password,
+    );
 
     return savedProfile;
   }

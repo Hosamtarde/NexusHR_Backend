@@ -623,6 +623,23 @@ MAIL_FROM="NexusHR <no-reply@nexushr.local>"
 
 ---
 
+## 💬 مزامنة كلمة المرور مع Rocket.Chat
+
+كلمة مرور النظام وكلمة مرور Rocket.Chat لازم تكون نفسها، وبتتزامن تلقائياً:
+
+| الحدث | اللي بيصير |
+|---|---|
+| `POST /employees` | حساب Rocket.Chat بينفتح بنفس كلمة المرور المرسلة |
+| `POST /auth/login` | بعد التحقق، يُسجَّل الدخول لـ Rocket.Chat بنفس الإيميل وكلمة المرور؛ لو فشل (حساب قديم أو كلمة مختلفة) بتنضبط كلمة Rocket.Chat على كلمة النظام وبتنعاد المحاولة. الرد بيحتوي `chat: { user_id, auth_token }` أو `chat: null` |
+| `POST /auth/refresh` | بيرجّع `chat` بتوكن جديد بدون كلمة المرور، لكن فقط لو انضبط `ROCKETCHAT_TOKEN_SECRET` (نفس قيمة `CREATE_TOKENS_FOR_USERS_SECRET` على سيرفر Rocket.Chat)؛ غير هيك بيرجّع `chat: null` والواجهة بتكمّل بتوكنها الحالي |
+| `PATCH /users/me/password` و `PATCH /users/:id/password` | بعد تغيير كلمة النظام، بتنضبط كلمة Rocket.Chat |
+
+لو Rocket.Chat مش شغّال، الدخول وتغيير كلمة المرور بينجحوا عادي، والفشل بيتسجّل باللوج (بدون كلمة المرور) وبتنعاد المزامنة بأول دخول.
+
+**إعدادات لازم تنضبط في Rocket.Chat** (Administration ← Settings ← Accounts): سياسة كلمات المرور لازم تسمح بـ 6 أحرف على الأقل عند الإنشاء (وكلمات النظام الجديدة 8 أحرف على الأقل)، ويُفضَّل تعطيل `Allow Password Change` عشان المستخدم ما يغيّر كلمته من داخل Rocket.Chat فقط. الشرح موجود كمان بتعليقات `.env.example`.
+
+---
+
 ## 🗃️ التعامل مع قاعدة البيانات (Migrations)
 
 المشروع يستخدم **TypeORM Migrations** بدل التوليد التلقائي للجداول:
@@ -651,7 +668,7 @@ docker exec hrms_mysql mysqldump -u hrms_user -phrms_pass --default-character-se
 
 ## 🔑 نقاط الوصول (API Endpoints)
 
-> 📘 التوثيق الكامل والتفاعلي متاح على `/api/docs` بعد تشغيل المشروع. المجموع الحالي: **96 route**.
+> 📘 التوثيق الكامل والتفاعلي متاح على `/api/docs` بعد تشغيل المشروع. المجموع الحالي: **97 route**.
 
 ### Authentication
 | Method | Endpoint | الوصف | الحماية |
@@ -667,6 +684,7 @@ docker exec hrms_mysql mysqldump -u hrms_user -phrms_pass --default-character-se
 | `GET` | `/users/me` | ملفي الشخصي | 🔒 مسجل دخول |
 | `PUT` | `/users/me` | تعديل بياناتي | 🔒 مسجل دخول |
 | `PATCH` | `/users/me/password` | تغيير كلمة المرور | 🔒 مسجل دخول |
+| `PATCH` | `/users/:id/password` | تعيين كلمة مرور جديدة لمستخدم (نفس الحساب) وتزامنها مع Rocket.Chat | 🔒 HR Admin |
 | `PATCH` | `/users/:id/role` | تعيين دور مستخدم *(ممنوع تغيير دورك أنت)* | 🔒 HR Admin |
 
 ### Departments
