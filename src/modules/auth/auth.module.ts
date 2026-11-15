@@ -9,11 +9,13 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { RefreshTokenEntity } from './refresh-token.entity';
 import { UsersModule } from '../users/users.module';
+import { RocketChatModule } from '../rocketchat/rocketchat.module';
 import { TokenCleanupService } from './token-cleanup.service';
 
 @Module({
   imports: [
     UsersModule,
+    RocketChatModule,
     PassportModule,
     TypeOrmModule.forFeature([RefreshTokenEntity]),
     JwtModule.registerAsync({

@@ -11,6 +11,16 @@ export interface RocketChatChannel {
   name: string;
 }
 
+export interface ChatSession {
+  user_id: string;
+  auth_token: string;
+}
+
+export type ChatLoginResult =
+  | { status: 'ok'; session: ChatSession }
+  | { status: 'rejected' }
+  | { status: 'unavailable' };
+
 export interface CreateChatUserInput {
   username: string;
   name: string;
@@ -64,6 +74,73 @@ export class RocketChatService {
       },
     );
     return result?.user ?? null;
+  }
+
+  async setUserPassword(
+    chatUserId: string,
+    password: string,
+  ): Promise<boolean> {
+    const result = await this.request('POST', 'users.update', {
+      userId: chatUserId,
+      data: { password },
+    });
+    return result !== null;
+  }
+
+  async createUserToken(chatUserId: string): Promise<ChatSession | null> {
+    const result = await this.request<{
+      data: { userId: string; authToken: string };
+    }>('POST', 'users.createToken', { userId: chatUserId });
+    if (!result?.data?.userId || !result.data.authToken) {
+      return null;
+    }
+    return { user_id: result.data.userId, auth_token: result.data.authToken };
+  }
+
+  async login(identifier: string, password: string): Promise<ChatLoginResult> {
+    if (!this.enabled) {
+      return { status: 'unavailable' };
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: identifier, password }),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+
+      const payload = (await response.json().catch(() => null)) as {
+        data?: { userId?: string; authToken?: string };
+      } | null;
+
+      if (response.ok && payload?.data?.userId && payload.data.authToken) {
+        return {
+          status: 'ok',
+          session: {
+            user_id: payload.data.userId,
+            auth_token: payload.data.authToken,
+          },
+        };
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        this.logger.debug('Rocket.Chat rejected the login credentials');
+        return { status: 'rejected' };
+      }
+
+      this.logger.error(
+        `Rocket.Chat POST login failed with status ${response.status}`,
+      );
+      return { status: 'unavailable' };
+    } catch (error) {
+      this.logger.error(
+        `Rocket.Chat POST login could not be reached: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return { status: 'unavailable' };
+    }
   }
 
   async getUsername(chatUserId: string): Promise<string | null> {

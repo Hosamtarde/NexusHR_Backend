@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
+import { ChatCredentialsService } from '../rocketchat/chat-credentials.service';
 import { RefreshTokenEntity } from './refresh-token.entity';
 import { LoginDto } from './dto/login.dto';
 import type { JwtSignOptions } from '@nestjs/jwt';
@@ -18,6 +19,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly chatCredentials: ChatCredentialsService,
     @InjectRepository(RefreshTokenEntity)
     private readonly refreshTokensRepository: Repository<RefreshTokenEntity>,
   ) {}
@@ -40,11 +42,13 @@ export class AuthService {
     }
 
     const tokens = await this.issueTokens(user);
+    const chat = await this.chatCredentials.loginWithSync(user, dto.password);
 
     this.logger.log(`User #${user.user_id} logged in as ${user.role}`);
 
     return {
       ...tokens,
+      chat,
       user: {
         user_id: user.user_id,
         first_name: user.first_name,
