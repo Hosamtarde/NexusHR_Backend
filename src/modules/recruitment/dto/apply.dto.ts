@@ -17,6 +17,7 @@ export class ApplyDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   phone_number?: string;
 
   @IsString()

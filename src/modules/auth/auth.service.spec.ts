@@ -4,7 +4,10 @@ import { AuthService } from './auth.service';
 const SESSION = { user_id: 'rc-1', auth_token: 'chat-token' };
 
 describe('AuthService chat session', () => {
-  let usersService: { findByEmailWithPassword: jest.Mock; findById: jest.Mock };
+  let usersService: {
+    findByEmailWithPassword: jest.Mock;
+    findByIdWithChat: jest.Mock;
+  };
   let jwt: { signAsync: jest.Mock; decode: jest.Mock; verifyAsync: jest.Mock };
   let refreshRepo: {
     save: jest.Mock;
@@ -29,7 +32,7 @@ describe('AuthService chat session', () => {
     };
     usersService = {
       findByEmailWithPassword: jest.fn().mockResolvedValue(user),
-      findById: jest.fn().mockResolvedValue(user),
+      findByIdWithChat: jest.fn().mockResolvedValue(user),
     };
     jwt = {
       signAsync: jest.fn().mockResolvedValue('jwt'),

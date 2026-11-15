@@ -85,7 +85,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const user = await this.usersService.findById(payload.sub);
+    const user = await this.usersService.findByIdWithChat(payload.sub);
     if (!user || !user.status) {
       await this.revokeAllForUser(payload.sub);
       throw new UnauthorizedException('Account is inactive or does not exist');
